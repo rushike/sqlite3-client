@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS request (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  method TEXT NOT NULL,
+  headers JSON,
+  body JSON,
+  create_ts DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

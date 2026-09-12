@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS account (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    account_type TEXT,
+    create_ts DATETIME DEFAULT CURRENT_TIMESTAMP,
+    modify_ts DATETIME
+);

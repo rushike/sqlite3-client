@@ -1,0 +1,54 @@
+[
+  {
+    "column": "id",
+    "type": "TEXT",
+    "constraints": ["PRIMARY KEY"]
+  },
+  {
+    "column": "request_id",
+    "type": "TEXT",
+    "constraints": ["FOREIGN KEY"],
+    "references": "request.id"
+  },
+  {
+    "column": "response_id",
+    "type": "TEXT",
+    "constraints": ["FOREIGN KEY"],
+    "references": "response.id"
+  },
+  {
+    "column": "runner",
+    "type": "TEXT",
+    "constraints": []
+  },
+  {
+    "column": "type",
+    "type": "TEXT",
+    "constraints": []
+  },
+  {
+    "column": "status",
+    "type": "TEXT",
+    "constraints": []
+  },
+  {
+    "column": "create_ts",
+    "type": "DATETIME",
+    "constraints": []
+  },
+  {
+    "column": "modify_ts",
+    "type": "DATETIME",
+    "constraints": []
+  },
+  {
+    "column": "start_ts",
+    "type": "DATETIME",
+    "constraints": []
+  },
+  {
+    "column": "end_ts",
+    "type": "DATETIME",
+    "constraints": []
+  }
+]
