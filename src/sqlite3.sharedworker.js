@@ -52,7 +52,8 @@ self.addEventListener("connect", (e) => {
       const result = await sqliteRunner.sqlExec(type, sql, params);
       port.postMessage({ reqId, result });
     } catch (err) {
-      port.postMessage({ reqId: msgEvent.data["reqId"] || -1, error: err.message });
+      console.error("Shared Worker caught error:", err);
+      port.postMessage({ reqId: msgEvent.data["reqId"] || -1, error: err.message, stack: err.stack });
     }
   });
 

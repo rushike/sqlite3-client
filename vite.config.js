@@ -10,6 +10,7 @@ export default defineConfig({
   ],
   build: {
     target: 'esnext',
+    sourcemap: true,
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'Sqlite3Client',

@@ -1,5 +1,7 @@
 import { semaphore } from "./utils.js";
 import { createLocalWorker } from "./sqlite3.localworker.js";
+import SqliteWorker from './sqlite3.worker.js?worker';
+import SharedSqliteWorker from './sqlite3.sharedworker.js?sharedworker';
 
 export class SQLiteClient {
   constructor(dbName = "myfinsheet-client1", workerType = null) {
@@ -21,10 +23,10 @@ export class SQLiteClient {
       this.messageTarget = createLocalWorker();
       this.worker = this.messageTarget;
     } else if (this.workerType === "shared") {
-      this.worker = new SharedWorker(new URL("./sqlite3.sharedworker.js", import.meta.url), { type: "module", name: this.dbName });
+      this.worker = new SharedSqliteWorker({ name: this.dbName });
       this.messageTarget = this.worker.port;
     } else {
-      this.worker = new Worker(new URL("./sqlite3.worker.js", import.meta.url), { type: "module" });
+      this.worker = new SqliteWorker();
       this.messageTarget = this.worker;
     }
 
@@ -44,8 +46,11 @@ export class SQLiteClient {
       if (cb === undefined) return;
 
       if (error != null) {
-        console.error("failed sql : ", cb,  cb.type, cb.sql, cb.params, result);
-        cb.reject(new Error(error + " : " + cb.sql));
+        console.error("failed sql : ", cb, cb.type, cb.sql, cb.params, result);
+        if (e.data.stack) {
+          console.error("Worker Stack Trace:\n", e.data.stack);
+        }
+        cb.reject(new Error(error + (cb.sql ? " : " + cb.sql : "")));
       } else {
         cb.resolve(result);
       }
@@ -54,6 +59,7 @@ export class SQLiteClient {
     };
 
     this.worker.onerror = (err) => {
+      console.log("Worker error", err);
       for (const { reject } of this.callbacks.values()) {
         reject(new Error(`${this.workerType} Worker crashed`));
       }
@@ -63,7 +69,7 @@ export class SQLiteClient {
     // Send the init message manually here
     return new Promise((resolve, reject) => {
       const reqId = ++this.reqId;
-      this.callbacks.set(reqId, { resolve, reject , type: "init"});
+      this.callbacks.set(reqId, { resolve, reject, type: "init" });
       if (this.workerType === "shared") {
         this.messageTarget.start();
       }
@@ -80,8 +86,8 @@ export class SQLiteClient {
     // const { applyFullSchema, applyMigrations: doApplyMigrations } = await import("./migrations.js");
     // await applyFullSchema(this);
     // await doApplyMigrations(this);
-     return await this.#call({
-      type : "migrations"
+    return await this.#call({
+      type: "migrations"
     })
   }
 
@@ -104,7 +110,7 @@ export class SQLiteClient {
     await this._ensureWorker();
     return new Promise((resolve, reject) => {
       const reqId = ++this.reqId;
-      
+
       this.callbacks.set(reqId, { resolve, reject, type: payload.type, sql: payload.sql, params: payload.params });
       this.messageTarget.postMessage({ reqId, ...payload });
     });
@@ -201,6 +207,9 @@ export async function getSqlite3(dbName = "myfinsheet-client1", workerType = nul
   else {
     await instanceSemaphore.acquire();
     try {
+      if (instanceMap.has(instanceKey)) {
+        return instanceMap.get(instanceKey);
+      }
       const sqlite3 = new SQLiteClient(dbName, workerType);
       // await sqlite3.init();
       instanceMap.set(instanceKey, sqlite3);

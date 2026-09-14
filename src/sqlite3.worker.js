@@ -64,8 +64,8 @@ self.onmessage = async (e) => {
     const result = await sqliteRunner.sqlExec(type, sql, params);
     postMessage({ reqId, result });
   } catch (err) {
-
-    postMessage({ reqId: e.data["reqId"] || -1, error: err.message });
+    console.error("Worker caught error:", err);
+    postMessage({ reqId: e.data["reqId"] || -1, error: err.message, stack: err.stack });
   }
 };
 

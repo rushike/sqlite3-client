@@ -13,7 +13,7 @@ export function createLocalWorker() {
           if (type === "init") {
             const { initSqlite3 } = await import("./wa-sqlite.js");
             const { SQLiteRunner } = await import("./utils.js");
-            
+
             if (!localWorker.sqlite3 || !localWorker.db) {
               const res = await initSqlite3(uri);
               localWorker.sqlite3 = res[0];
@@ -37,7 +37,9 @@ export function createLocalWorker() {
 
           const result = await localWorker.sqliteRunner.sqlExec(type, sql, params);
           if (localWorker.onmessage) localWorker.onmessage({ data: { reqId, result } });
-        } catch(err) {
+        } catch (err) {
+          console.log("err got in local worker : ", err);
+
           if (localWorker.onmessage) localWorker.onmessage({ data: { reqId: data.reqId || -1, error: err.message } });
         }
       });
