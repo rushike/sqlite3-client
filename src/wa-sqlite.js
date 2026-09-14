@@ -1,30 +1,25 @@
-import SQLiteESMFactory from 'wa-sqlite/dist/wa-sqlite.mjs';
-import { OPFSCoopSyncVFS } from 'wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
-
-// Import the Javascript API wrappers.
+// Import the Javascript API wrappers statically.
 import * as SQLite from 'wa-sqlite';
 
 let db = null;
 
-async function initWaSqlite() {
-  // Invoke the ES6 module factory to create the SQLite
-  // Emscripten module. This will fetch and compile the
-  // .wasm file.
+async function initWaSqlite(isShared) {
+  // Always use the Synchronous build + OPFSCoopSyncVFS. 
+  // It is the ONLY VFS that supports multiple connections without Asyncify crashes!
+  const SQLiteESMFactory = (await import('wa-sqlite/dist/wa-sqlite.mjs')).default;
   const module = await SQLiteESMFactory();
-
-  // Use the module to build the API instance.
   globalThis.sqlite3 = SQLite.Factory(module);
-  // 3. Create the COOP (Cooperative OPFS) VFS
-  const coopVfs = await OPFSCoopSyncVFS.create("coop", module);
+  
+  const { OPFSCoopSyncVFS } = await import('wa-sqlite/src/examples/OPFSCoopSyncVFS.js');
+  const vfs = await OPFSCoopSyncVFS.create("coop", module);
 
-  // 4. Register VFS with sqlite3 runtime
-  globalThis.sqlite3.vfs_register(coopVfs, true); // true = make default VFS
+  // Register VFS with sqlite3 runtime
+  globalThis.sqlite3.vfs_register(vfs, true); // true = make default VFS
 }
 
-
-export async function initSqlite3(dbName = "myfinsheet-client1") {
+export async function initSqlite3(dbName = "myfinsheet-client1", isShared = false) {
   if (!globalThis.sqlite3) {
-    await initWaSqlite();
+    await initWaSqlite(isShared);
   }
 
   if (!db) {

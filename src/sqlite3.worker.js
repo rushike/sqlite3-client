@@ -37,7 +37,7 @@ self.onmessage = async (e) => {
   try {
     const { reqId, type, sql, params, uri } = e.data;
     if (type === "init") {
-      [sqlite3, db] = await initSqlite3(uri);
+      [sqlite3, db] = await initSqlite3(uri, false); // false = isShared (use adaptive VFS)
       sqliteRunner = new SQLiteRunner(sqlite3, db);
       return postMessage({ reqId, result: "ok" });
     }
