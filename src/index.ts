@@ -1,4 +1,4 @@
-export {raw, suta} from "./sqlite3.client.js";
+export { raw, suta, SQLiteClient } from "./sqlite3.client.js";
 export * as exporter from "./exporter.js";
 export * as importer from "./importer.js";
 export { sqlProvider } from "./sql-provider.js";

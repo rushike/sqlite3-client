@@ -28,35 +28,58 @@ export class SQLiteRunner {
   async sqlExec(type, sql, params) {
     await this.ensureSingleStatement(sql);
 
-    const iter = this.sqlite3.statements(this.db, sql, { unscoped: true });
-    const { value: stmt } = await iter.next();
-    if (!stmt) throw new Error("Failed to prepare.");
-
-    if (params.length) this.sqlite3.bind_collection(stmt, params);
-
-    if (type === "run") {
-      await this.sqlite3.step(stmt);
-      const changes = this.sqlite3.changes(this.db);
-      await this.sqlite3.finalize(stmt);
-      return { changes };
-    }
-
-    if (type === "get") {
-      let row = null;
-      if (await this.sqlite3.step(stmt) === SQLite.SQLITE_ROW) {
-        row = this.rowToObject(stmt);
+    try {
+      if (type === "run") {
+        let totalChanges = 0;
+        let count = 0;
+        for await (const stmt of this.sqlite3.statements(this.db, sql, { unscoped: true })) {
+          count++;
+          if (params && params.length) this.sqlite3.bind_collection(stmt, params);
+          await this.sqlite3.step(stmt);
+          totalChanges += this.sqlite3.changes(this.db);
+          await this.sqlite3.finalize(stmt);
+        }
+        if (count === 0) throw new Error("No executable SQL statement found.");
+        return { changes: totalChanges, statementsCount: count };
       }
-      await this.sqlite3.finalize(stmt);
-      return row;
-    }
 
-    if (type === "all") {
-      const rows = [];
-      while (await this.sqlite3.step(stmt) === SQLite.SQLITE_ROW) {
-        rows.push(this.rowToObject(stmt));
+      const iter = this.sqlite3.statements(this.db, sql, { unscoped: true });
+      const { value: stmt } = await iter.next();
+      if (!stmt) throw new Error("Failed to prepare statement.");
+
+      if (params.length) this.sqlite3.bind_collection(stmt, params);
+
+      if (type === "get") {
+        let row = null;
+        if (await this.sqlite3.step(stmt) === SQLite.SQLITE_ROW) {
+          row = this.rowToObject(stmt);
+        }
+        await this.sqlite3.finalize(stmt);
+        return row;
       }
-      await this.sqlite3.finalize(stmt);
-      return rows;
+
+      if (type === "all") {
+        const rows = [];
+        while (await this.sqlite3.step(stmt) === SQLite.SQLITE_ROW) {
+          rows.push(this.rowToObject(stmt));
+        }
+        await this.sqlite3.finalize(stmt);
+        return rows;
+      }
+    } catch (err) {
+      if (this.sqlite3.get_autocommit(this.db) === 0) {
+        try {
+          const rollbackIter = this.sqlite3.statements(this.db, "ROLLBACK;", { unscoped: true });
+          const { value: rollbackStmt } = await rollbackIter.next();
+          if (rollbackStmt) {
+            await this.sqlite3.step(rollbackStmt);
+            await this.sqlite3.finalize(rollbackStmt);
+          }
+        } catch (rollbackErr) {
+          console.warn("Failed to auto-rollback after SQL error:", rollbackErr);
+        }
+      }
+      throw err;
     }
   }
 

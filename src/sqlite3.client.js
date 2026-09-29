@@ -50,7 +50,11 @@ export class SQLiteClient {
         if (e.data.stack) {
           console.error("Worker Stack Trace:\n", e.data.stack);
         }
-        cb.reject(new Error(error + (cb.sql ? " : " + cb.sql : "")));
+        const err = new Error(error);
+        err.sql = cb.sql;
+        err.type = cb.type;
+        if (e.data.stack) err.workerStack = e.data.stack;
+        cb.reject(err);
       } else {
         cb.resolve(result);
       }
