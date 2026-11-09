@@ -1,6 +1,5 @@
 import { initSqlite3 } from "./wa-sqlite.js"
 import { SQLiteRunner } from "./utils.js"
-import { applyFullSchema } from "./migrations.js";
 
 
 
@@ -49,11 +48,6 @@ self.onmessage = async (e) => {
     }
 
 
-    if (type === "migrations") {
-      await applyFullSchema(sqliteRunner)
-      return postMessage({ reqId, result: "migrations-ok" });
-    }
-
     if (type === "each") {
       const rows = [];
       await sqliteRunner.sqlExecEach(sql, params, rows.push.bind(rows));
@@ -68,4 +62,3 @@ self.onmessage = async (e) => {
     postMessage({ reqId: e.data["reqId"] || -1, error: err.message, stack: err.stack });
   }
 };
-

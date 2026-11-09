@@ -1,6 +1,5 @@
 import { initSqlite3 } from "./wa-sqlite.js"
 import { SQLiteRunner } from "./utils.js"
-import { applyFullSchema } from "./migrations.js";
 
 console.log("Shared Worker running:", import.meta.url);
 
@@ -42,11 +41,6 @@ self.addEventListener("connect", (e) => {
 
       if (!sqlite3 || !db || !sqliteRunner) {
         throw new Error("Database not initialized. Call init() first.");
-      }
-
-      if (type === "migrations") {
-        await applyFullSchema(sqliteRunner);
-        return port.postMessage({ reqId, result: "migrations-ok" });
       }
 
       if (type === "each") {

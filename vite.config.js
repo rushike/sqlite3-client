@@ -8,6 +8,12 @@ export default defineConfig({
       insertTypesEntry: true,
     }),
   ],
+  worker: {
+    format: 'es',
+    rollupOptions: {
+      external: [/^wa-sqlite(?:\/|$)/, 'sqlocal', '@rushike/myfs', 'js-untar'],
+    },
+  },
   build: {
     target: 'esnext',
     sourcemap: true,
@@ -18,11 +24,12 @@ export default defineConfig({
       formats: ['es']
     },
     rollupOptions: {
-      external: ['wa-sqlite', 'sqlocal', '@rushike/myfs', 'js-untar'],
+      // Keep wa-sqlite external. Its JavaScript and WASM stay in the installed
+      // wa-sqlite package and are processed by the consuming application.
+      external: [/^wa-sqlite(?:\/|$)/],
       output: {
         globals: {
           'wa-sqlite': 'waSqlite',
-          'sqlocal': 'sqlocal'
         }
       }
     }

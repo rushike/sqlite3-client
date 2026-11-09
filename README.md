@@ -1,107 +1,125 @@
 # sqlite3-client
 
-`sqlite3-client` is a robust, asynchronous SQLite client designed for the browser environment. It leverages **wa-sqlite** (a WebAssembly build of SQLite) and the **Origin Private File System (OPFS)** to provide high-performance, persistent local database storage.
+Browser SQLite client built on `wa-sqlite`, Web Workers, and OPFS.
 
-## How it Uses wa-sqlite and OPFS
+`wa-sqlite` is installed as a runtime dependency from the public Git repository.
+Its JavaScript factory and WASM remain in
+`node_modules/wa-sqlite/dist/`; this package does not download or copy the WASM
+into its own `dist` directory.
 
-The client initializes a WebAssembly SQLite runtime using the ES6 module factory from `wa-sqlite`. To achieve high performance and persistence, it mounts an **OPFS VFS** (specifically, `OPFSCoopSyncVFS` for Cooperative OPFS). This VFS translates SQLite's synchronous C file I/O operations into synchronous filesystem calls provided by the browser's Origin Private File System. Because synchronous OPFS API calls (`createSyncAccessHandle`) are only available in Web Workers, the database engine strictly runs inside a background worker.
+## Installation and imports
 
-### Required HTTP Headers
+Install directly from the Git repository:
 
-Because `wa-sqlite` uses `SharedArrayBuffer` for synchronization and memory sharing (specifically needed for `OPFSCoopSyncVFS`), your web server **must** serve the application with strict Cross-Origin Isolation headers. Without these headers, `SharedArrayBuffer` is disabled in modern browsers, and the SQLite client will fail to initialize.
+```bash
+npm install github:rushike/sqlite3-client
+```
 
-Ensure the following headers are set on your server:
+Use the package entrypoint:
+
+```js
+import { getSqlite3, raw, suta } from 'sqlite3-client';
+
+const db = await getSqlite3('my-database-name', 'shared');
+```
+
+`getSqlite3` is exported from [`src/index.ts`](./src/index.ts) and returns a
+singleton for each `databaseName + workerType` pair. The available worker types
+are `null` (dedicated Worker), `'shared'` (SharedWorker), and `'local'` (main
+thread fallback, primarily for tests).
+
+The package name in [`package.json`](./package.json) is intentionally unscoped,
+so the unscoped import is the primary supported form for Git installation.
+
+<details>
+<summary>Scoped package import (not the current Git-install path)</summary>
+
+The current package is not published under the scoped name. If a future
+registry package is published as `@rushike/sqlite3-client`, its import would be:
+
+```js
+import { getSqlite3 } from '@rushike/sqlite3-client';
+```
+
+</details>
+
+## Browser requirements
+
+The default and shared worker modes use the OPFS VFS. Serve the application
+with cross-origin isolation headers:
 
 ```http
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: require-corp
 ```
 
----
+The implementation details are documented in [`docs/architecture.md`](./docs/architecture.md).
 
-## Client API Details
+The Vite library build leaves `wa-sqlite` external. The consuming Vite
+application must process the dependency so that `wa-sqlite.wasm` is emitted in
+the application's final asset directory. See
+[`docs/consideration.md`](./docs/consideration.md) for bundler and deployment
+requirements.
 
-The API provides a convenient, promise-based interface to interact with the database from the main thread.
+## Querying
 
-### Initialization
+The `sql` tag binds interpolated values as SQLite parameters:
 
-```javascript
-import { getSqlite3 } from 'sqlite3-client';
-
-// Get a singleton instance of the client
-// workerType can be: "local", "shared", or null (standard Worker)
-const db = await getSqlite3("my-database-name", "shared");
-```
-
-### Methods
-
-- **`init()`**: (Lazy) Initializes the worker and the database connection.
-- **`applyMigrations()`**: Triggers the migration process defined in the worker.
-- **`listTables()`**: Returns a list of all tables in the current database.
-- **`getSchema(table)`**: Returns the PRAGMA table information for a given table name.
-
-### Querying
-
-The client uses Tagged Template Literals to write safe, parameter-bound SQL queries.
-
-#### The `sql` Tag
-Use the `sql` tag for standard prepared statements. It automatically extracts parameters to prevent SQL injection.
-
-```javascript
-// Run a query that doesn't return data (e.g., INSERT, UPDATE)
-await db.sql`INSERT INTO users (name, age) VALUES (${"Alice"}, ${30})`.run();
-
-// Fetch a single row
+```js
+await db.sql`INSERT INTO users (name, age) VALUES (${'Alice'}, ${30})`.run();
 const user = await db.sql`SELECT * FROM users WHERE id = ${1}`.get();
-
-// Fetch all matching rows
 const users = await db.sql`SELECT * FROM users WHERE age > ${20}`.all();
 ```
 
-#### The `supersql` Tag (Dynamic Queries)
-The `supersql` tag extends the basic `sql` tag by supporting dynamic query construction using helper functions.
+For dynamic identifiers and lists, use `supersql`:
 
-- `raw(value)`: Injects raw SQL identifiers (like table or column names) securely.
-- `suta(array, separator)`: Joins an array of values or fragments.
-
-```javascript
-import { raw, suta } from 'sqlite3-client';
-
-const tableName = "users";
-const columns = ["name", "age"];
-const values = ["Bob", 25];
+```js
+const tableName = 'users';
+const columns = ['name', 'age'];
+const values = ['Bob', 25];
 
 await db.supersql`
-  INSERT INTO ${raw(tableName)} (${suta(columns.map(raw))}) 
+  INSERT INTO ${raw(tableName)} (${suta(columns.map(raw))})
   VALUES (${suta(values)})
 `.run();
 ```
 
----
+This generates SQLite-compatible SQL equivalent to:
 
-## Architecture: How Queries Run
+```sql
+INSERT INTO users (name, age) VALUES (?, ?)
+```
 
-To ensure the main UI thread remains responsive, all database operations are offloaded to background workers. Here is the architectural flow of a query:
+`INSERT ... SET ...` is not SQLite syntax; it is associated with MySQL.
 
-1. **The Client (Main Thread)**:
-   When you execute a query via `db.sql\`...\``, the `SQLiteClient` parses the template literal. It separates the SQL string (with `?` placeholders) and the parameter values.
-   
-2. **IPC (Inter-Process Communication)**:
-   The client creates a unique `reqId` and stores the associated Promise (`resolve`/`reject` callbacks). It then packages the query, parameters, and `reqId` into a payload and sends it to the worker via `postMessage`.
+`raw()` inserts text directly into the SQL string. It does not escape or
+validate identifiers, so only pass trusted table and column names. Values that
+come from users or external input must use normal interpolation or `suta()` so
+they remain bound parameters.
 
-3. **The Worker**:
-   The worker (`sqlite3.worker.js` or `sqlite3.sharedworker.js`) listens for incoming messages. 
-   - When it receives a query, it passes the SQL string and parameters to the `SQLiteRunner`.
-   - The runner executes the query synchronously against the WASM-backed SQLite database using the OPFS VFS.
-   - Using a worker is required because the OPFS synchronous API (`createSyncAccessHandle`) blocks the thread it runs on, which is illegal on the main thread.
+See [`docs/query-api.md`](./docs/query-api.md) for the complete query-builder
+behavior and result methods.
 
-4. **Result Delivery**:
-   Once the query completes (or errors), the worker packages the result (or error message) with the corresponding `reqId` and uses `postMessage` to send it back to the main thread.
+## Public API
 
-5. **Promise Resolution**:
-   The main thread receives the message, looks up the pending Promise using the `reqId`, and resolves (or rejects) it with the payload from the worker.
+- `getSqlite3(databaseName?, workerType?)`
+- `SQLiteClient`
+- `raw(value)`
+- `suta(values, separator?)`
+- `db.init()`
+- `db.listTables()`
+- `db.getSchema(table)`
+- `db.sql\`...\`.run()`, `.get()`, `.all()`, `.each()`
+- `db.supersql\`...\`.run()`, `.get()`, `.all()`
 
-### Worker Types
-- **Standard Worker (default)**: A dedicated `Worker` spawned for the current browser tab.
-- **SharedWorker (`"shared"`)**: Uses a `SharedWorker`, allowing multiple browser tabs of the same origin to communicate with a single shared SQLite database instance. This prevents database lock conflicts across tabs.
-- **Local Worker (`"local"`)**: Bypasses Web Workers (runs on the main thread) primarily for testing environments where Workers or OPFS might not be available.
+The package no longer exposes or runs a migration feature. Schema creation and
+migrations should be owned by the application using ordinary SQL or its own
+migration layer.
+
+## Detailed documentation
+
+- [`docs/query-api.md`](./docs/query-api.md) — tags, parameters, raw identifiers, arrays, and results.
+- [`docs/architecture.md`](./docs/architecture.md) — client, worker, WASM, OPFS, and SharedWorker flow.
+- [`docs/build-and-deployment.md`](./docs/build-and-deployment.md) — Vite, package metadata, `@rushike/myfs`, and publishing.
+- [`docs/consideration.md`](./docs/consideration.md) — WASM ownership, bundler requirements, and deployment checks.
+- [`docs/troubleshooting.md`](./docs/troubleshooting.md) — common browser, worker, and package-resolution failures.

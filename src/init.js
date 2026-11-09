@@ -1,7 +1,6 @@
 import { getSqlite3 } from "./sqlite3.client.js";
 
 const sqlite3 = await getSqlite3();
-sqlite3.applyMigrations();
 
 // console.log("created obj ", sqlite3);
 

@@ -1,8 +1,8 @@
 {
-  "name": "@rushike/sqlite3-client",
+  "name": "sqlite3-client",
   "version": "0.1.0",
   "type": "module",
-  "main": "dist/sqlite3-client.umd.js",
+  "main": "dist/sqlite3-client.es.js",
   "module": "dist/sqlite3-client.es.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -25,12 +25,11 @@
   "devDependencies": {
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
-    "vite-plugin-dts": "^3.0.0"
+    "vite-plugin-dts": "^3.0.0",
+    "@rushike/myfs": "workspace:*",
+    "js-untar": "^2.0.0"
   },
   "dependencies": {
-    "@rushike/myfs": "workspace:*",
-    "js-untar": "^2.0.0",
-    "sqlocal": "^0.16.0",
-    "wa-sqlite": "workspace:*"
+    "wa-sqlite": "git+https://github.com/rushike/wa-sqlite.git@main"
   }
 }

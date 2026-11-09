@@ -7,6 +7,8 @@ async function initWaSqlite(isShared) {
   // Always use the Synchronous build + OPFSCoopSyncVFS. 
   // It is the ONLY VFS that supports multiple connections without Asyncify crashes!
   const SQLiteESMFactory = (await import('wa-sqlite/dist/wa-sqlite.mjs')).default;
+  // wa-sqlite resolves its WASM relative to its own module. Vite emits that
+  // asset when the consuming application builds its dependency graph.
   const module = await SQLiteESMFactory();
   globalThis.sqlite3 = SQLite.Factory(module);
   

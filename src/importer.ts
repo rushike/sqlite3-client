@@ -12,7 +12,7 @@ export async function fromTar(path : string) {
   const myfs = new MyFS({ provider: 'opfs' });
   let file = await myfs.readFile(path);
   let tempDirPath = `temp/${Date.now()}`
-  let tempDir = await myfs.mkdir(tempDirPath);
+  await myfs.mkdir(tempDirPath);
 
   untar(await file.arrayBuffer())
       .progress(function(extractedFile : any) {
@@ -62,9 +62,6 @@ export async function fromJson(path : string) {
 
     // Prepare the INSERT statement
     // INSERT INTO table (col1, col2) VALUES (?, ?), (?, ?)...
-    const placeholders = columns.map(() => "?").join(", ");
-    const insertSql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
-
     // Process rows: either in a loop or one large batch if your worker supports it
     // For large datasets, a transaction is highly recommended.
     await sqlite3.sql`BEGIN TRANSACTION;`.run();

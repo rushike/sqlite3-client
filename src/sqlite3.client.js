@@ -86,15 +86,6 @@ export class SQLiteClient {
     return await this._ensureWorker();
   }
 
-  async applyMigrations() {
-    // const { applyFullSchema, applyMigrations: doApplyMigrations } = await import("./migrations.js");
-    // await applyFullSchema(this);
-    // await doApplyMigrations(this);
-    return await this.#call({
-      type: "migrations"
-    })
-  }
-
   async listTables() {
     return await this.sql`
         SELECT name 
